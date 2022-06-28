@@ -12,7 +12,13 @@ Wifi Enabled MQTT Enabled Sensor Calibration (Dry / Wet setting) Bloom / Veg mod
 
 Hardware required
 
-Splash proof case Capacitive Soil moisture sensor 5v Relay 240v Submersible Pump with ext power Microcontroller - Nodemcu USB power supply (ext battery) Screen
+Splash proof case 
+Capacitive Soil moisture sensor 
+5v Relay 240v Submersible 
+Water Pump with ext power 
+Microcontroller - Nodemcu 
+USB power supply (ext battery) 
+Screen
 
 Stage setting via MQTT (Vegitative or Bloom)
 This setting allows the device to change the level at which the pump will activate.
