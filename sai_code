@@ -1,0 +1,315 @@
+//This code is for the ESP8266 board with a 5V relay, LCD Screen and capacitive soil moisture sensor
+
+
+PubSubClient client(SoilPlant);
+unsigned long lastMsg = 0;
+#define MSG_BUFFER_SIZE  (50)
+char msg[MSG_BUFFER_SIZE];
+int value = 0;
+const int sensorPin = A0;
+int iTime=6000;
+int sensorValue;
+int startValue;
+int pumpStart;
+int status;
+int stage;
+int cal;
+long hival = 370;
+long loval = 810;
+const int relayPin = 12;
+char* strsensorValue;
+//int  LOVAL = 810;
+//int   HIVAL = 370;
+
+// Timers auxiliar variables
+long now = millis();
+long lastMeasure = 0;
+// Don't change the function below. This functions connects your ESP8266 to your router
+
+
+void setup_wifi() {
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  lcd.clear();
+  lcd.print("Connecting..");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("WiFi connected - ESP IP address: ");
+  Serial.println(WiFi.localIP());
+  lcd.clear();
+  lcd.print("Connected");
+  delay(1000);
+
+}
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected() ) {
+    Serial.print("Attempting MQTT connection...");
+    // Attempt to connect
+    /*
+     YOU MIGHT NEED TO CHANGE THIS LINE, IF YOU'RE HAVING PROBLEMS WITH MQTT MULTIPLE CONNECTIONS
+     To change the ESP device ID, you will have to give a new name to the ESP8266.
+      */
+    if (client.connect("SoilPlant")) {
+      Serial.println("connected to MQTT");
+      client.subscribe("Soil2/status"); // Subscribe to a get Stage
+      Serial.println("Sub to status");
+      delay(1000);
+      client.subscribe("Soil2/cal"); // Subscribe to calibrate
+      Serial.println("Sub to cal");
+      delay(1000);
+      client.subscribe("Soil2/iTime"); // Subscribe to set irrigation time
+      Serial.println("Sub to iTime");
+      }
+      else {
+     Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 10 seconds");
+      // Wait 10 seconds before retrying
+      delay(10000);
+      }
+  }
+}
+
+void callback(String topic, byte* message, unsigned int length)
+  {
+    Serial.print("Message arrived [");
+    Serial.print(topic);
+    Serial.print("] ");
+    String messageTemp;
+    for (int i=0;i<length;i++)
+    {
+      Serial.print((char)message[i]);
+      messageTemp += (char)message[i];
+    }
+    Serial.println();
+    if(topic=="Soil2/status")
+    {
+      if (messageTemp == "2")
+      {
+        stage = 2;
+        Serial.print("Bloom Stage ");
+        client.publish("Soil2/stage", "Bloom");
+        Serial.println(sensorValue);
+        client.publish("Soil2/reading", strsensorValue);
+
+      }
+     else if(messageTemp == "1")
+     {
+        stage = 1;
+        Serial.print("Veg Stage ");
+        Serial.println(sensorValue);
+        client.publish("Soil2/reading", strsensorValue);
+        client.publish("Soil2/stage", "Veg");
+      }
+  }
+ }
+void setup() {
+  Serial.flush();
+  Serial.begin(115200);
+  pinMode(sensorPin, INPUT);
+  pinMode(relayPin, OUTPUT);
+  Serial.print("Starting up .. ");
+  digitalWrite(relayPin, HIGH);
+  Serial.println("Pump status Off");
+  lcd.begin();   // initializing the LCD
+  lcd.backlight(); // Enable or Turn On the backlight
+  lcd.print("Starting up "); // Start Printing
+  lcd.setCursor(0, 1);   ``
+
+  delay(1000);
+  setup_wifi();
+  Serial.println("Moisture reading is ");
+  Serial.println(sensorValue);
+  Serial.println("Start with Pump Off");
+  digitalWrite(relayPin, HIGH);
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+  pumpStart=now;
+  delay(1000);
+
+
+}
+void loop() {
+
+  if (!client.connected()) {
+    reconnect();
+  }
+      Serial.print("Measurement = ");
+      Serial.println(sensorValue);
+      sensorValue = map(sensorValue, loval, hival, 0, 100);
+      Serial.print("Dry value is ");
+      Serial.println(loval);
+      Serial.print("Wet value is ");
+      Serial.println(hival);
+      Serial.print("iTime value is ");
+      Serial.println(iTime);
+
+  if(!client.loop())
+  client.connect("SoilPlant");
+ // Publishes new temperature and humidity every 10 seconds
+      now = millis();
+      sensorValue = analogRead(sensorPin); //read sensor
+      String strsensorValue = String(sensorValue); //change sensor value to string
+      sensorValue = map(sensorValue, loval, hival, 0, 100);
+      delay(5000);
+     if (now - lastMeasure > 10000) {
+
+      lastMeasure=now;
+      // Check if any reads failed and exit early (to try again).
+      if (isnan(sensorValue)) {
+        Serial.println("Failed to read from Moisture sensor!");
+      }
+    static char humidityTemp[2];
+    dtostrf(sensorValue, 2, 0, humidityTemp);
+
+    if (stage == 0) {               // Generic Stage
+               Serial.println("Stage Generic");
+
+               //lcd.clear();
+               lcd.setCursor(0, 1);
+               lcd.print("Generic 30%");
+               lcd.print(sensorValue);
+                   if (sensorValue < 30)
+                   {
+                    client.publish("Soil2/humidity", humidityTemp);
+                    lcd.clear();
+                    lcd.print("Moisture = ");
+                    lcd.print(sensorValue);
+                    lcd.print(" %");
+                    lcd.setCursor(0, 1);
+                    lcd.print("Generic 30%");
+                    Serial.print("Moisture level is ");
+                    Serial.print(sensorValue);
+                    Serial.println(" %");
+                    Serial.println("Turn on pump now");
+                    Serial.println(now);
+                    Serial.println(pumpStart);
+                    if (now - pumpStart > 30000)
+                    {
+                      pumpStart=now;
+                      Serial.println("Pump turned on");
+                      digitalWrite(relayPin, LOW);
+                      delay(iTime);
+                      digitalWrite(relayPin, HIGH);
+                      Serial.println("Pump stop");
+
+                    }
+
+                  }
+                 else if (sensorValue > 31)
+                 {
+                  client.publish("Soil2/humidity", humidityTemp);
+                  Serial.println(now);
+                  digitalWrite(relayPin, HIGH);
+                  lcd.clear();
+                  lcd.print("Moisture = ");
+                  lcd.print(sensorValue);
+                  lcd.print(" %");
+                  lcd.setCursor(0, 1);
+                  lcd.print("Generic  30%");
+                  delay(2000);
+                  Serial.print("Moisture level is ");
+                  Serial.print(sensorValue);
+                  Serial.println(" %");
+           //     ESP.deepSleep(120e6);
+                }
+      }
+         else if (stage == 2) {  // Bloom Stage
+                    Serial.println("Stage Bloom");
+                    Serial.println(lastMeasure);
+
+                      if (sensorValue < 40){
+                      client.publish("Soil2/humidity", humidityTemp);
+                      lcd.clear();
+                      lcd.print("Moisture = ");
+                      lcd.print(sensorValue);
+                      lcd.print(" %");
+                      lcd.setCursor(0, 1);
+                      lcd.print("Bloom 40%");
+                      delay(1000);
+                      Serial.print("Moisture level is ");
+                      Serial.print(sensorValue);
+                      Serial.println(" %");
+                      Serial.println (now);
+                      Serial.println("Turn on pump");
+                      Serial.println(iTime);
+                      if (now - pumpStart > 30000)
+                      {
+
+                      digitalWrite(relayPin, LOW);
+                      delay(iTime);
+                      digitalWrite(relayPin, HIGH);
+                      pumpStart=now;
+                      }
+                   }
+                else if (sensorValue > 41)
+                {
+                      client.publish("Soil2/humidity", humidityTemp);
+                      digitalWrite(relayPin, HIGH);
+                      lcd.clear();
+                      lcd.print("Moisture = ");
+                      lcd.print(sensorValue);
+                      lcd.print(" %");
+                      lcd.setCursor(0, 1);
+                      lcd.print("Bloom 40%");
+                      delay(3000);
+                      Serial.print("Moisture level is ");
+                      Serial.print(sensorValue);
+                      Serial.println(" %");
+                 //     ESP.deepSleep(120e6);
+                }
+               }
+                  else if (stage == 1) {  // Vegatative Stage
+                        Serial.println("Stage Veg");
+                        if (sensorValue < 51){
+                        client.publish("Soil2/humidity", humidityTemp);
+                          lcd.clear();
+                          lcd.print("Moisture = ");
+                          lcd.print(sensorValue);
+                          lcd.print(" %");
+                          lcd.setCursor(0, 1);
+                          lcd.print("Veg 50%");
+                          delay(2000);
+                          Serial.print("Moisture level is ");
+                          Serial.print(sensorValue);
+                          Serial.println(" %");
+                          delay(2000);
+                          Serial.println("Turn on pump");
+                          Serial.println(iTime);
+                          if (now - pumpStart > 30000)
+                          {
+                          digitalWrite(relayPin, LOW);
+                          delay(iTime);
+                          Serial.println("Turn off pump");
+                          digitalWrite(relayPin, HIGH);
+                          pumpStart=now;
+                          }
+                       }
+                        }
+                        else if (sensorValue > 51)
+                        {
+                              client.publish("Soil2/humidity", humidityTemp);
+                              digitalWrite(relayPin, HIGH);
+                              lcd.clear();
+                              lcd.print("Moisture = ");
+                              lcd.print(sensorValue);
+                              lcd.print(" %");
+                              lcd.setCursor(0, 1);
+                              lcd.print("Veg 50%");
+                              delay(2000);
+                              Serial.print("Moisture level is ");
+                              Serial.print(sensorValue);
+                              Serial.println(" %");
+                         //     ESP.deepSleep(120e6);
+                         }
+                  }
+  }
