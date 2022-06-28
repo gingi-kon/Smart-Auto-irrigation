@@ -2,7 +2,8 @@ Smart Auto Irrigation Project
 
 The system detects soil humidity using a capacitive soil moisture sensor and activates the pump when the soil reaches the level set. (Dry setting)
 
-The pump is active for a set amount of seconds then stops to allow water to penetrate the soil. A reading is taken every 30 seconds and the cycle restarts until the desired humidity level is reached. Plant growth stage (Vegitative/Bloom) can be set to change how dry the soil gets before triggering the pump to irrigate.
+The pump is active for a set amount of seconds then stops to allow water to penetrate the soil. A reading is taken every 30 seconds and the cycle restarts 
+until the desired humidity level is reached. Plant growth stage (Vegitative/Bloom) can be set to change how dry the soil gets before triggering the pump to irrigate.
 
 The soil moisture sensor can be calibrated to suit the type of growing medium used.
 
